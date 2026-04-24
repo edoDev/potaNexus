@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KDØWAN • POTA Activations • Cartographer's Dynamic Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.4.1/dist/MarkerCluster.Default.css" />
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Space+Grotesk:wght@500;600&amp;display=swap');
+        
+        :root {
+            --accent: #00c853;
+            --bg: #0a0a0a;
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', system_ui, sans-serif;
+            overflow: hidden;
+            background: #0a0a0a;
+            color: #f0f0f0;
+        }
+        
+        .header {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .logo {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -2px;
+            background: linear-gradient(90deg, #00c853, #00b140);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .title {
+            flex: 1;
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 24px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+            padding-top: 64px;
+        }
+        
+        #map {
+            flex: 1;
+            position: relative;
+        }
+        
+        #sidebar {
+            width: 380px;
+            background: rgba(20, 20, 20, 0.98);
+            border-left: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+            box-shadow: -4px 0 20px rgba(0, 0, 0, 0.4);
+            z-index: 1000;
+        }
+        
+        .sidebar-tabs {
+            display: flex;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .tab {
+            flex: 1;
+            padding: 16px;
+            text-align: center;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .tab.active {
+            background: rgba(0, 200, 83, 0.15);
+            color: var(--accent);
+            border-bottom: 3px solid var(--accent);
+        }
+        
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+        }
+        
+        .park-item, .timeline-item {
+            display: flex;
+            align-items: center;
+            padding: 14px 16px;
+            margin: 6px 8px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid transparent;
+        }
+        
+        .park-item:hover, .timeline-item:hover {
+            background: rgba(0, 200, 83, 0.15);
+            transform: translateX(4px);
+            border-color: var(--accent);
+        }
+        
+        .park-ref, .timeline-ref {
+            font-family: monospace;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--accent);
+            width: 78px;
+            flex-shrink: 0;
+        }
+        
+        .park-name, .timeline-name {
+            font-size: 15px;
+            font-weight: 500;
+            line-height: 1.3;
+        }
+        
+        .timeline-date {
+            font-family: monospace;
+            font-size: 13px;
+            color: #888;
+            margin-left: auto;
+            padding-left: 12px;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(8px);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: #111;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 680px;
+            max-height: 92vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.4);
+            animation: modalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        @keyframes modalPop {
+            0% { transform: scale(0.95); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .modal-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .modal-body {
+            padding: 24px;
+        }
+        
+        .modal-section {
+            margin-bottom: 28px;
+        }
+        
+        .modal-section h3 {
+            font-size: 17px;
+            margin-bottom: 12px;
+            color: var(--accent);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 16px;
+        }
+        
+        .meta-item {
+            background: rgba(255,255,255,0.05);
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+        
+        .meta-item strong {
+            display: block;
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 4px;
+        }
+        
+        .log-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .log-table th, .log-table td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-family: monospace;
+        }
+        
+        .log-table tr.my-activation {
+            background: rgba(0, 200, 83, 0.15);
+        }
+        
+        .footer {
+            padding: 16px 24px;
+            font-size: 12px;
+            color: #666;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+            background: rgba(10, 10, 10, 0.95);
+        }
+        
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        
+        .api-status {
+            font-size: 12px;
+            padding: 4px 10px;
+            background: rgba(0, 200, 83, 0.2);
+            color: #00c853;
+            border-radius: 9999px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">KDØWAN</div>
+        <div class="title">POTA Activations • Cartographer's Dynamic Map</div>
+        
+        <div class="stats">
+            <div class="stat">
+                <span style="color:#00c853;">●</span>
+                <span id="stat-parks">20 Parks</span>
+            </div>
+            <div class="stat">
+                <span style="color:#00c853;">📍</span>
+                <span>Multi-State</span>
+            </div>
+            <div class="stat">
+                <span class="api-status" id="api-status">🟢 LIVE POTA API</span>
+            </div>
+        </div>
+        
+        <a href="https://pota.app" target="_blank" style="color:#00c853; text-decoration:none; font-weight:600; font-size:14px; display:flex; align-items:center; gap:6px;">
+            POTA.app →
+        </a>
+    </div>
+
+    <div class="container">
+        <!-- Map -->
+        <div id="map"></div>
+        
+        <!-- Sidebar -->
+        <div id="sidebar">
+            <div class="sidebar-tabs">
+                <div class="tab active" id="tab-parks" onclick="switchTab(0)">Parks</div>
+                <div class="tab" id="tab-timeline" onclick="switchTab(1)">Activation Timeline</div>
+            </div>
+            
+            <!-- Parks Tab -->
+            <div class="sidebar-content" id="content-parks">
+                <div style="padding:12px 16px 8px;font-size:13px;color:#888;border-bottom:1px solid rgba(255,255,255,0.1);">
+                    Click any park → full metadata + dynamic activation stats + recent log
+                </div>
+                <div id="park-list" class="park-list">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+            
+            <!-- Timeline Tab -->
+            <div class="sidebar-content" id="content-timeline" style="display:none;">
+                <div style="padding:12px 16px 8px;font-size:13px;color:#888;border-bottom:1px solid rgba(255,255,255,0.1);">
+                    Your activations in reference order (chronological proxy)
+                </div>
+                <div id="timeline-list" style="padding:8px;">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+            
+            <div class="footer">
+                Configurable GitHub-ready version • Live POTA API integration<br>
+                Built for KD0WAN • Ready for any activator
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL -->
+    <div id="park-modal" class="modal" onclick="if(event.target.id === 'park-modal') hideModal()">
+        <div class="modal-content" onclick="event.stopImmediatePropagation()">
+            <div class="modal-header">
+                <div>
+                    <span id="modal-ref" style="font-family:monospace;font-size:18px;color:var(--accent);"></span>
+                    <h2 id="modal-name" style="font-size:22px;margin-top:4px;"></h2>
+                </div>
+                <button onclick="hideModal()" style="background:none;border:none;color:#aaa;font-size:28px;cursor:pointer;line-height:1;">×</button>
+            </div>
+            
+            <div class="modal-body" id="modal-body">
+                <!-- Dynamically populated -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+    <script>
+        // ==================== CONFIGURATION (EASY TO CUSTOMIZE FOR ANY ACTIVATOR) ====================
+        const CONFIG = {
+            myCallsign: "KD0WAN",                     // ← Change this to your callsign
+            mapTitle: "POTA Activations • Cartographer's Dynamic Map",
+            // Your activated parks – add/remove as needed. Coordinates are required for map pins.
+            parks: [
+                { ref: "US-2266", name: "Prophetstown State Park", lat: 40.5027, lng: -86.8321 },
+                { ref: "US-4195", name: "Dunes State Nature Preserve", lat: 41.6667, lng: -87.0276 },
+                { ref: "US-1003", name: "Jubilee College State Park", lat: 40.8213, lng: -89.807 },
+                { ref: "US-1016", name: "Edward R. Madigan State Park", lat: 40.1164, lng: -89.4008 },
+                { ref: "US-11922", name: "Powder Valley Nature Center State Conservation Area", lat: 38.556, lng: -90.4281 },
+                { ref: "US-12209", name: "Gravois Creek State Conservation Area", lat: 38.5334, lng: -90.2991 },
+                { ref: "US-1751", name: "Castlewood State Park", lat: 38.5487, lng: -90.545 },
+                { ref: "US-1753", name: "Cuivre River State Park", lat: 39.0336, lng: -90.9309 },
+                { ref: "US-1757", name: "Elephant Rocks State Park", lat: 37.6546, lng: -90.6886 },
+                { ref: "US-1761", name: "Ha Ha Tonka State Park", lat: 37.967, lng: -92.7604 },
+                { ref: "US-1768", name: "Lake of the Ozarks State Park", lat: 38.0791, lng: -92.5711 },
+                { ref: "US-1783", name: "Route 66 State Park", lat: 38.5029, lng: -90.5935 },
+                { ref: "US-1784", name: "St. Francois State Park", lat: 37.9761, lng: -90.5169 },
+                { ref: "US-3351", name: "Gov. Daniel Dunklin's Grave State Historic Site", lat: 38.2809, lng: -90.3776 },
+                { ref: "US-3357", name: "Mastodon State Historic Site", lat: 38.379, lng: -90.3848 },
+                { ref: "US-4492", name: "Mark Twain National Forest", lat: 37.7168, lng: -91.1267 },
+                { ref: "US-1997", name: "Tinker's Creek State Park", lat: 41.2765, lng: -81.3732 },
+                { ref: "US-3514", name: "Fort Miamis Fallen Timbers Battlefield National Historic Site", lat: 41.5725, lng: -83.6261 },
+                { ref: "US-9414", name: "Irwin Prairie State Nature Preserve", lat: 41.6579, lng: -83.7819 },
+                { ref: "US-9438", name: "Tinkers Creek State Nature Preserve", lat: 41.2849, lng: -81.3918 }
+            ]
+        };
+
+        let map, clusterGroup, parkMarkers = {};
+        let currentTab = 0;
+        let allParksData = {}; // Cache for fetched park metadata
+
+        // ==================== MAP INITIALIZATION ====================
+        function initMap() {
+            map = L.map('map', {
+                zoomControl: true,
+                attributionControl: true,
+                maxZoom: 18,
+                minZoom: 5
+            });
+
+            const topo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenTopoMap (CC-BY-SA)',
+                maxZoom: 17
+            });
+            const satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Esri, Maxar',
+                maxZoom: 19
+            });
+            const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            });
+
+            topo.addTo(map);
+
+            L.control.layers({
+                "🗺️ Topographic (Cartographer's Choice)": topo,
+                "🛰️ Satellite": satellite,
+                "🛤️ OpenStreetMap": osm
+            }, {}, { position: 'topright' }).addTo(map);
+
+            clusterGroup = L.markerClusterGroup({
+                showCoverageOnHover: false,
+                zoomToBoundsOnClick: true,
+                spiderfyOnMaxZoom: true,
+                maxClusterRadius: 45,
+                iconCreateFunction: function(cluster) {
+                    const count = cluster.getChildCount();
+                    return L.divIcon({
+                        html: `<div style="background:#00c853;color:#000;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;border:4px solid #fff;box-shadow:0 4px 12px rgba(0,200,83,0.5);">${count}</div>`,
+                        className: 'custom-cluster',
+                        iconSize: [38, 38]
+                    });
+                }
+            });
+
+            CONFIG.parks.forEach(park => {
+                const marker = L.marker([park.lat, park.lng], { riseOnHover: true })
+                    .bindPopup(`
+                        <div style="min-width:240px">
+                            <strong style="color:#00c853">${park.name}</strong><br>
+                            <span style="font-family:monospace">${park.ref}</span><br>
+                            <small>Click for full metadata + live stats</small>
+                        </div>
+                    `);
+
+                clusterGroup.addLayer(marker);
+                parkMarkers[park.ref] = { marker, park };
+            });
+
+            map.addLayer(clusterGroup);
+            const bounds = L.latLngBounds(CONFIG.parks.map(p => [p.lat, p.lng]));
+            map.fitBounds(bounds, { padding: [80, 80] });
+        }
+
+        // ==================== SIDEBAR LISTS ====================
+        function populateParksList() {
+            const container = document.getElementById('park-list');
+            container.innerHTML = '';
+            CONFIG.parks.forEach(park => {
+                const item = document.createElement('div');
+                item.className = 'park-item';
+                item.innerHTML = `
+                    <div class="park-ref">${park.ref}</div>
+                    <div class="park-name">${park.name}</div>
+                `;
+                item.onclick = () => showParkModal(park.ref);
+                container.appendChild(item);
+            });
+        }
+
+        function populateTimeline() {
+            const container = document.getElementById('timeline-list');
+            container.innerHTML = `<div style="padding:0 12px 12px;font-size:13px;color:#666;">Your ${CONFIG.parks.length} activations – ordered by reference (POTA chronological proxy)</div>`;
+            
+            CONFIG.parks.forEach((park, i) => {
+                const item = document.createElement('div');
+                item.className = 'timeline-item';
+                item.innerHTML = `
+                    <div style="position:absolute;left:28px;top:0;bottom:0;width:3px;background:linear-gradient(#00c853,#111);"></div>
+                    <div style="display:flex;align-items:center;gap:16px;position:relative">
+                        <div style="width:18px;height:18px;background:#00c853;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#000;font-size:10px;font-weight:700;">${i+1}</div>
+                        <div class="timeline-ref">${park.ref}</div>
+                        <div class="timeline-name">${park.name}</div>
+                        <div class="timeline-date">Activated by ${CONFIG.myCallsign}</div>
+                    </div>
+                `;
+                item.onclick = () => showParkModal(park.ref);
+                container.appendChild(item);
+            });
+        }
+
+        function switchTab(tabIndex) {
+            currentTab = tabIndex;
+            document.getElementById('tab-parks').classList.toggle('active', tabIndex === 0);
+            document.getElementById('tab-timeline').classList.toggle('active', tabIndex === 1);
+            document.getElementById('content-parks').style.display = tabIndex === 0 ? 'block' : 'none';
+            document.getElementById('content-timeline').style.display = tabIndex === 1 ? 'block' : 'none';
+        }
+
+        // ==================== ENHANCED MODAL WITH DYNAMIC STATS & METADATA ====================
+        async function showParkModal(ref) {
+            const modal = document.getElementById('park-modal');
+            const body = document.getElementById('modal-body');
+            
+            body.innerHTML = `
+                <div style="text-align:center;padding:60px 20px;color:#666;">
+                    <div style="animation:spin 1.5s linear infinite;margin:0 auto 16px;width:32px;height:32px;border:4px solid #222;border-top-color:#00c853;border-radius:50%;"></div>
+                    Fetching live park metadata + activation stats from POTA API...
+                </div>
+            `;
+            modal.style.display = 'flex';
+
+            try {
+                // 1. Park metadata
+                const parkRes = await fetch(`https://api.pota.app/park/${ref}`);
+                if (!parkRes.ok) throw new Error('Park API error');
+                const parkData = await parkRes.json();
+
+                // 2. Recent activations (last 20)
+                const actRes = await fetch(`https://api.pota.app/park/activations/${ref}?count=20`);
+                if (!actRes.ok) throw new Error('Activations API error');
+                const activations = await actRes.json();
+
+                // Cache it
+                allParksData[ref] = { parkData, activations };
+
+                // Dynamic stats
+                const totalRecentActivations = activations.length;
+                const totalRecentQSOs = activations.reduce((sum, a) => sum + (a.totalQSOs || 0), 0);
+                const myActivations = activations.filter(a => a.activeCallsign === CONFIG.myCallsign);
+                const myRecentQSOs = myActivations.reduce((sum, a) => sum + (a.totalQSOs || 0), 0);
+
+                let html = `
+                    <div class="modal-section">
+                        <h3>📍 Park Overview</h3>
+                        <div class="meta-grid">
+                            <div class="meta-item"><strong>Location</strong>${parkData.locationName || '—'}</div>
+                            <div class="meta-item"><strong>Coordinates</strong>${parkData.latitude?.toFixed(4)}°N, ${parkData.longitude?.toFixed(4)}°W</div>
+                            <div class="meta-item"><strong>Grid Squares</strong>${parkData.grid4 || '—'} / ${parkData.grid6 || '—'}</div>
+                            <div class="meta-item"><strong>First Activation</strong>${parkData.firstActivationDate || '—'} by ${parkData.firstActivator || '—'}</div>
+                            <div class="meta-item"><strong>Park Type</strong>${parkData.parktypeDesc || '—'}</div>
+                            <div class="meta-item"><strong>Agency</strong>${parkData.agencies || '—'}</div>
+                        </div>
+                        ${parkData.parkComments ? `<p style="margin-top:16px;font-size:14px;line-height:1.5;background:rgba(255,255,255,0.05);padding:14px;border-radius:10px;">${parkData.parkComments}</p>` : ''}
+                        ${parkData.website ? `<a href="${parkData.website}" target="_blank" style="color:#00c853;text-decoration:underline;font-size:13px;margin-top:8px;display:inline-block;">Official Park Website →</a>` : ''}
+                    </div>
+
+                    <div class="modal-section">
+                        <h3>📊 Dynamic Activation Statistics</h3>
+                        <div class="meta-grid">
+                            <div class="meta-item"><strong>Recent Activations</strong>${totalRecentActivations} (last 20 shown)</div>
+                            <div class="meta-item"><strong>Total QSOs (recent)</strong>${totalRecentQSOs}</div>
+                            <div class="meta-item"><strong>Your Activations (recent)</strong>${myActivations.length} • ${myRecentQSOs} QSOs</div>
+                            <div class="meta-item"><strong>Access Methods</strong>${parkData.accessMethods || '—'}</div>
+                        </div>
+                    </div>
+
+                    <div class="modal-section">
+                        <h3>📜 Recent Activation Log</h3>
+                        ${activations.length > 0 ? `
+                        <table class="log-table">
+                            <thead><tr><th>Date</th><th>Activator</th><th>QSOs</th><th>Modes</th></tr></thead>
+                            <tbody>
+                                ${activations.map(act => {
+                                    const isMine = act.activeCallsign === CONFIG.myCallsign;
+                                    const modes = [];
+                                    if (act.qsosPHONE) modes.push(`${act.qsosPHONE}📱`);
+                                    if (act.qsosCW) modes.push(`${act.qsosCW}📻`);
+                                    if (act.qsosDATA) modes.push(`${act.qsosDATA}💻`);
+                                    return `<tr class="${isMine ? 'my-activation' : ''}">
+                                        <td>${act.qso_date || '—'}</td>
+                                        <td><strong>${act.activeCallsign}</strong></td>
+                                        <td>${act.totalQSOs}</td>
+                                        <td>${modes.join(' ')}</td>
+                                    </tr>`;
+                                }).join('')}
+                            </tbody>
+                        </table>` : `<p style="background:rgba(255,255,255,0.08);padding:16px;border-radius:10px;">No recent activations in POTA records.</p>`}
+                    </div>
+
+                    <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:20px;">
+                        <a href="https://pota.app/#/park/${ref}" target="_blank" 
+                           style="flex:1;background:#00c853;color:#000;padding:14px;text-align:center;border-radius:10px;font-weight:600;text-decoration:none;">
+                            Full POTA Park Page →
+                        </a>
+                        <a href="https://pota.app/#/activations?park=${ref}" target="_blank" 
+                           style="flex:1;background:rgba(255,255,255,0.1);padding:14px;text-align:center;border-radius:10px;font-weight:600;text-decoration:none;">
+                            All-Time Activations
+                        </a>
+                    </div>
+                `;
+
+                body.innerHTML = html;
+
+            } catch (err) {
+                console.error(err);
+                body.innerHTML = `
+                    <div style="padding:40px;text-align:center;color:#f66;">
+                        <strong>Live POTA API unavailable</strong><br>
+                        (Temporary downtime or CORS restriction when embedded)<br><br>
+                        Showing basic info. Full live stats and logs always available on the official site.
+                        <br><br>
+                        <a href="https://pota.app/#/park/${ref}" target="_blank" style="color:#fff;text-decoration:underline;font-size:15px;">Open ${ref} on POTA.app →</a>
+                        <p style="margin-top:20px;font-size:13px;color:#888;">Tip: For full live data when self-hosting, run locally or use a CORS proxy.</p>
+                    </div>
+                `;
+            }
+        }
+
+        function hideModal() {
+            document.getElementById('park-modal').style.display = 'none';
+        }
+
+        // ==================== INIT ====================
+        window.onload = function() {
+            initMap();
+            populateParksList();
+            populateTimeline();
+            
+            // Marker clicks also open full modal
+            Object.keys(parkMarkers).forEach(ref => {
+                parkMarkers[ref].marker.on('click', () => showParkModal(ref));
+            });
+            
+            // Update stats
+            document.getElementById('stat-parks').textContent = `${CONFIG.parks.length} Parks Activated`;
+            
+            console.log('%c✅ POTA Cartographer Map READY! Configured for ' + CONFIG.myCallsign + '. GitHub-ready & fully customizable.', 'background:#00c853;color:#000;font-weight:700;padding:4px 8px;border-radius:4px;');
+        };
+    </script>
+</body>
+</html>
